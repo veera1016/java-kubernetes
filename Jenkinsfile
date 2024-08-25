@@ -54,7 +54,7 @@ pipeline {
         stage('Build and Tag Docker Image') {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: 'docker-cred') {
+                    withDockerRegistry(url: 'https://index.docker.io/v1/', credentialsId: 'docker-cred') {
                         sh "docker build -t veera1016/boardgame:latest ."
                     }
                 }
@@ -68,8 +68,10 @@ pipeline {
         }
         stage('Push Docker Image to Registry') {
             steps {
-                withDockerRegistry(credentialsId: 'docker-cred') {
-                    sh "docker push veera1016/boardgame:latest"
+                script {
+                    withDockerRegistry(url: 'https://index.docker.io/v1/', credentialsId: 'docker-cred') {
+                        sh "docker push veera1016/boardgame:latest"
+                    }
                 }
             }
         }
