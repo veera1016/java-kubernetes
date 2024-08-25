@@ -7,7 +7,7 @@ pipeline {
     stages {
         stage('Git Checkout') {
             steps {
-                git branch: 'main', credentialsId: 'git-cred', url: 'https://github.com/Bijan1235/BoardGame.git'
+                checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/veera1016/java-kubernetes.git']])
             }
         }
         stage('Compile') {
