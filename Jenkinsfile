@@ -27,18 +27,30 @@ pipeline {
         }
         stage('Trivy File System Scan') {
             steps {
-                sh "trivy fs --scanners vuln --format table -o trivy-fs-report.html ."
-                archiveArtifacts artifacts: 'trivy-fs-report.html'
+                script {
+                    try {
+                        sh "trivy fs --scanners vuln --format table -o trivy-fs-report.html ."
+                        archiveArtifacts artifacts: 'trivy-fs-report.html'
+                    } catch (Exception e) {
+                        error "Trivy File System Scan failed: ${e.message}"
+                    }
+                }
             }
         }
         stage('SonarQube Quality Gate') {
             steps {
                 withSonarQubeEnv('SonarQubeServer') { // Replace 'SonarQubeServer' with your actual SonarQube server configuration name
-                    sh 'mvn sonar:sonar'
+                    try {
+                        sh 'mvn sonar:sonar'
+                    } catch (Exception e) {
+                        error "SonarQube analysis failed: ${e.message}"
+                    }
                 }
                 script {
-                    // Proceed if the quality gate passes, or fail the pipeline if it doesn't
-                    waitForQualityGate abortPipeline: true
+                    def qg = waitForQualityGate()
+                    if (qg.status != 'OK') {
+                        error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                    }
                 }
             }
         }
@@ -47,7 +59,7 @@ pipeline {
                 sh "mvn package"
             }
         }
-        stage('Build and Deploy to Nexus') {
+        stage('Deploy to Nexus') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USERNAME', passwordVariable: 'NEXUS_PASSWORD')]) {
                     withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'jdk17', maven: 'maven3') {
@@ -68,9 +80,11 @@ pipeline {
         stage('Docker Image Scan with Trivy') {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                    try {
                         sh "trivy image --format table -o trivy-image-report.html veera1016/boardgame:latest"
                         archiveArtifacts artifacts: 'trivy-image-report.html'
+                    } catch (Exception e) {
+                        error "Trivy Docker Image Scan failed: ${e.message}"
                     }
                 }
             }
@@ -126,6 +140,28 @@ pipeline {
                     replyTo: 'ashoktogaru1996@gmail.com',
                     mimeType: 'text/html',
                     attachmentsPattern: 'trivy-fs-report.html,trivy-image-report.html'
+                )
+            }
+        }
+        failure {
+            script {
+                def jobName = env.JOB_NAME
+                def buildNumber = env.BUILD_NUMBER
+                def body = """
+                <html>
+                <body>
+                <h3>Pipeline failed in job ${jobName} - Build ${buildNumber}</h3>
+                <p>Check the <a href="${BUILD_URL}">console output</a> for details.</p>
+                </body>
+                </html>
+                """
+                emailext(
+                    subject: "${jobName} - Build ${buildNumber} - FAILURE",
+                    body: body,
+                    to: 'togaruashok1996@gmail.com',
+                    from: 'togaruashok1996@gmail.com',
+                    replyTo: 'ashoktogaru1996@gmail.com',
+                    mimeType: 'text/html'
                 )
             }
         }
