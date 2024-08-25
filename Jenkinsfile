@@ -7,7 +7,12 @@ pipeline {
     stages {
         stage('Git Checkout') {
             steps {
-                checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/veera1016/java-kubernetes.git']])
+                checkout scm: [
+                    $class: 'GitSCM', 
+                    branches: [[name: '*/master']],
+                    extensions: [],
+                    userRemoteConfigs: [[url: 'https://github.com/veera1016/java-kubernetes.git']]
+                ]
             }
         }
         stage('Compile') {
@@ -23,9 +28,9 @@ pipeline {
         stage('Trivy File System Scan') {
             steps {
                 sh "trivy fs --format table -o trivy-fs-report.html ."
+                archiveArtifacts artifacts: 'trivy-fs-report.html'
             }
         }
-        
         stage('Quality Gate') {
             steps {
                 script {
@@ -40,11 +45,8 @@ pipeline {
         }
         stage('Build and Deploy') {
             steps {
-                // Use Jenkins credentials for Nexus
                 withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USERNAME', passwordVariable: 'NEXUS_PASSWORD')]) {
-                    // Configure Maven with global settings, JDK, and Maven version
                     withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'jdk17', maven: 'maven3') {
-                        // Run Maven deploy to publish artifacts to Nexus
                         sh "mvn deploy"
                     }
                 }
@@ -64,6 +66,7 @@ pipeline {
                 script {
                     withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
                         sh "trivy image --format table -o trivy-image-report.html veera1016/boardgame:latest"
+                        archiveArtifacts artifacts: 'trivy-image-report.html'
                     }
                 }
             }
@@ -79,7 +82,15 @@ pipeline {
         }
         stage('Deploy to Kubernetes') {
             steps {
-                withKubeConfig(caCertificate: '', clusterName: 'kubernetes', contextName: '', credentialsId: 'k8-cred', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://172.31.8.22:6443') {
+                withKubeConfig(
+                    caCertificate: '', 
+                    clusterName: 'kubernetes', 
+                    contextName: '', 
+                    credentialsId: 'k8-cred', 
+                    namespace: 'webapps', 
+                    restrictKubeConfigAccess: false, 
+                    serverUrl: 'https://172.31.8.22:6443'
+                ) {
                     sh "kubectl apply -f deployment-service.yaml"
                     sh "kubectl get pods -n webapps"
                 }
@@ -91,13 +102,13 @@ pipeline {
             script {
                 def jobName = env.JOB_NAME
                 def buildNumber = env.BUILD_NUMBER
-                def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
+                def pipelineStatus = currentBuild.result ?: 'SUCCESS'
                 def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
                 def body = """
                 <html>
                 <body>
                 <div style="border: 4px solid ${bannerColor}; padding: 10px;">
-                <h3 style="color: white;">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
+                <h3 style="color: white; background-color:${bannerColor};">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
                 </div>
                 <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
                 </body>
@@ -116,4 +127,3 @@ pipeline {
         }
     }
 }
- 
