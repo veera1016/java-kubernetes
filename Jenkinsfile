@@ -3,38 +3,25 @@ pipeline {
 
     tools {
         jdk 'jdk17'
-        maven 'maven3'
+        maven 'Default Maven'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scmGit(
-                    branches: [[name: '*/master']],
-                    userRemoteConfigs: [[url: 'https://github.com/veera1016/java-kubernetes.git']]
-                )
-            }
-        }
-
-        stage('Compile and Test') {
-            steps {
-                sh 'mvn clean verify'
-            }
-        }
-
-        stage('Trivy File System Scan') {
-            steps {
-                sh 'trivy fs --format table -o trivy-fs-report.html .'
-                archiveArtifacts artifacts: 'trivy-fs-report.html'
+                checkout scm
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonarqubeserver') {
-                    sh '''$SCANNER_HOME/bin/sonar-scanner \
-                          -Dsonar.projectName=boardgame \
-                          -Dsonar.projectKey=boardgame'''
+                script {
+                    def mvn = tool name: 'Default Maven'
+                    withSonarQubeEnv('sonarqubeserver') {
+                        sh "${mvn}/bin/mvn clean verify sonar:sonar \
+                            -Dsonar.projectKey=boardgame \
+                            -Dsonar.projectName='boardgame'"
+                    }
                 }
             }
         }
@@ -49,11 +36,10 @@ pipeline {
             }
         }
 
-        stage('Publish Artifacts to Nexus') {
+        stage('Trivy File System Scan') {
             steps {
-                withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'jdk17', maven: 'maven3') {
-                    sh "mvn deploy"
-                }
+                sh 'trivy fs --format table -o trivy-fs-report.html .'
+                archiveArtifacts artifacts: 'trivy-fs-report.html'
             }
         }
 
