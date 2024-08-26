@@ -16,7 +16,6 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 script {
-                    def mvn = tool name: 'Default Maven'
                     withSonarQubeEnv('sonarqubeserver') {
                         sh "${mvn}/bin/mvn clean verify sonar:sonar \
                             -Dsonar.projectKey=boardgame \
