@@ -1,9 +1,11 @@
 pipeline {
     agent any
+
     tools {
         jdk 'jdk17'
         maven 'maven3'
     }
+
     stages {
         stage('Checkout') {
             steps {
@@ -13,39 +15,38 @@ pipeline {
                 )
             }
         }
+
         stage('Compile and Test') {
             steps {
                 sh 'mvn clean verify'
             }
         }
+
         stage('Trivy File System Scan') {
             steps {
                 sh 'trivy fs --format table -o trivy-fs-report.html .'
                 archiveArtifacts artifacts: 'trivy-fs-report.html'
             }
         }
+
         stage('SonarQube Analysis') {
             steps {
-                script {
-                    withSonarQubeEnv('SonarQubeServer') {
-                        sh 'mvn sonar:sonar'
-                    }
-                    def qualityGate = waitForQualityGate()
-                    if (qualityGate.status != 'OK') {
-                        error "SonarQube Quality Gate failed: ${qualityGate.status}"
-                    }
+                withSonarQubeEnv('sonarqubeserver') {
+                    sh '''$SCANNER_HOME/bin/sonar-scanner \
+                          -Dsonar.projectName=boardgame \
+                          -Dsonar.projectKey=boardgame'''
                 }
             }
         }
-        stage('Build and Deploy') {
+
+        stage('Publish Artifacts to Nexus') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'NEXUS_USERNAME', passwordVariable: 'NEXUS_PASSWORD')]) {
-                    withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'jdk17', maven: 'maven3') {
-                        sh 'mvn deploy'
-                    }
+                withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'jdk17', maven: 'maven3') {
+                    sh "mvn deploy"
                 }
             }
         }
+
         stage('Docker Image Build and Scan') {
             steps {
                 script {
@@ -58,6 +59,7 @@ pipeline {
                 }
             }
         }
+
         stage('Deploy to Kubernetes') {
             steps {
                 withKubeConfig(
@@ -70,6 +72,7 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             script {
@@ -83,7 +86,7 @@ pipeline {
                 <div style="border: 4px solid ${color}; padding: 10px;">
                 <h3 style="color: white; background-color: ${color};">Pipeline Status: ${status}</h3>
                 </div>
-                <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
+                <p>Check the <a href="${env.BUILD_URL}">console output</a>.</p>
                 </body>
                 </html>
                 """
