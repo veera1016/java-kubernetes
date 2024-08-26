@@ -3,11 +3,11 @@ pipeline {
 
     tools {
         jdk 'jdk17'                     // Ensure 'jdk17' is properly configured in Jenkins global tool configuration.
-        maven 'Default Maven'            // Ensure 'Default Maven' is properly configured in Jenkins global tool configuration.
+        maven 'Maven3'            // Ensure 'Default Maven' is properly configured in Jenkins global tool configuration.
     }
 
     environment {
-        mvnHome = tool 'Default Maven'   // Define the Maven tool path to be used in shell scripts.
+        mvnHome = tool 'Maven3'   // Define the Maven tool path to be used in shell scripts.
     }
 
     stages {
