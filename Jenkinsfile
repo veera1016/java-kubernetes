@@ -39,6 +39,16 @@ pipeline {
             }
         }
 
+        stage('Quality Gate') {
+            steps {
+                script {
+                    // Uncomment the following line to enable quality gate check
+                    // waitForQualityGate abortPipeline: true, credentialsId: 'sonar-cred'
+                    echo "Quality gate check would be performed here."
+                }
+            }
+        }
+
         stage('Publish Artifacts to Nexus') {
             steps {
                 withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'jdk17', maven: 'maven3') {
